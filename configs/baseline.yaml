@@ -1,0 +1,9 @@
+preprocessing_steps:
+  remainder: passthrough
+  verbose_feature_names_out: False
+  transforms:
+    - simple_imputer:
+      columns:
+        - BPMeds
+      strategy: constant
+      fill_value: 0
