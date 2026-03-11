@@ -1,9 +1,12 @@
+target: TenYearCHD
+random_state: 42
+test_size: 0.2
+
+model_name: DummyClassifier
+
+evaluation:
+  metrics: [auc, f1, accuracy, precision, recall, log_loss]
+  log_metrics: [classification_report, confusion_matrix]
+  plot_metrics: []
+
 preprocessing_steps:
-  remainder: passthrough
-  verbose_feature_names_out: False
-  transforms:
-    - simple_imputer:
-      columns:
-        - BPMeds
-      strategy: constant
-      fill_value: 0

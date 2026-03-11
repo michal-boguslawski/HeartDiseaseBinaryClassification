@@ -1,67 +1,81 @@
 # Run training pipelines from here
-from sklearn.metrics import classification_report, f1_score, roc_auc_score
+import argparse
+from pathlib import Path
 from sklearn.pipeline import Pipeline
 from sklearn import set_config
 
-from .preprocess import load_data, split_data, build_preprocessing_pipeline
-from .features import build_feature_pipeline, get_feature_groups
+from .config import load_config, Config
+from .dataclass import PipelineModel
+from .evaluate import Evaluator
+from .features import get_feature_groups, PreprocessingPipelineBuilder
+from .preprocess import load_data, split_data
 from .train import build_model
 
 
 set_config(transform_output="pandas")
-TARGET = "TenYearCHD"
 
 
-def run_experiment() -> Pipeline:
+def build_pipeline(preprocessing_steps: PipelineModel | None, model_name: str, model_params: dict = {}) -> Pipeline:
+    preprocessing_pipeline = PreprocessingPipelineBuilder().build(preprocessing_steps)
+    model = build_model(model_name, model_params)
+    if preprocessing_pipeline is None:
+        return Pipeline(
+            [("model", model)]
+        )
+    return Pipeline(
+        [
+            ("preprocessing", preprocessing_pipeline),
+            ("model", model),
+        ]
+    )
+
+
+def run_experiment(config: Config) -> Pipeline:
+    TARGET = config.target
+    RANDOM_STATE = config.random_state
+    TEST_SIZE = config.test_size
+
     df = load_data()
     X = df.drop(columns=[TARGET])
     y = df[TARGET]
 
-    X_train, X_test, y_train, y_test = split_data(X, y)
+    X_train, X_test, y_train, y_test = split_data(X, y, train_size=1-TEST_SIZE, random_state=RANDOM_STATE)
 
     binary_features, categorical_features, numeric_features = get_feature_groups(X_train)
 
-    preprocessing_pipeline = build_preprocessing_pipeline(
-        binary_features=binary_features,
-        categorical_features=categorical_features,
-        numeric_features=numeric_features
-    )
+    pipe = build_pipeline(config.preprocessing_steps, model_name=config.model_name, model_params=config.model_params)
 
-    feature_engineering_pipeline = build_feature_pipeline(
-        binary_features=binary_features,
-        categorical_features=categorical_features,
-        numeric_features=numeric_features
-    )
-
-    model = build_model()
-
-    pipe = Pipeline(
-        [
-            ("preprocess", preprocessing_pipeline),
-            ("feature_engineer", feature_engineering_pipeline),
-            ("model", model)
-        ]
-    )
-    pipe.fit(X_train, y_train)
+    print(pipe)
 
     print(20*"=", "Start Train", 20*"=")
-    print(f"Train Accuracy: {pipe.score(X_train, y_train)}")
+    pipe.fit(X_train, y_train)
+
+    evaluator = Evaluator(config.evaluation.metrics, config.evaluation.log_metrics, config.evaluation.plot_metrics)
+
     y_pred = pipe.predict(X_train)
     y_proba = pipe.predict_proba(X_train)
-    print(classification_report(y_train, y_pred))
-    print(f"F1-score {f1_score(y_train, y_pred)}")
-    print(f"AUC-score {roc_auc_score(y_train, y_proba[:, 1])}")
+
+    print(evaluator.evaluate(y_train, y_pred, y_proba))
 
     print(20*"=", "Start Test", 20*"=")
-    print(f"Test Accuracy: {pipe.score(X_test, y_test)}")
     y_pred = pipe.predict(X_test)
     y_proba = pipe.predict_proba(X_test)
-    print(classification_report(y_test, y_pred))
-    print(f"F1-score {f1_score(y_test, y_pred)}")
-    print(f"AUC-score {roc_auc_score(y_test, y_proba[:, 1])}")
+
+    print(evaluator.evaluate(y_test, y_pred, y_proba))
     return pipe
 
 
 if __name__ == "__main__":
-    pipe = run_experiment()
-    print(type(pipe))
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path("configs/baseline.yaml"),
+        help="Path to config file"
+    )
+
+    args = parser.parse_args()
+
+    config = load_config(args.config)
+
+    pipe = run_experiment(config)

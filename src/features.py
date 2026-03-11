@@ -1,7 +1,15 @@
+import json
+from pprint import pprint
 import pandas as pd
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
+from sklearn.base import BaseEstimator
+from sklearn.compose import ColumnTransformer, make_column_transformer
+from sklearn.impute import SimpleImputer, MissingIndicator
+from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import Binarizer, OneHotEncoder, TargetEncoder
+from typing import Literal, Any
+
+from .config import load_config
+from .dataclass import ColumnTransformerModel, TransformerModel, PipelineModel
 
 
 def get_feature_groups(df: pd.DataFrame) -> tuple[list[str], list[str], list[str]]:
@@ -32,29 +40,74 @@ def get_feature_groups(df: pd.DataFrame) -> tuple[list[str], list[str], list[str
     return binary_features, categorical_features, numeric_features
 
 
-def build_feature_pipeline(
-    binary_features: list[str], categorical_features: list[str], numeric_features: list[str]
-) -> Pipeline | ColumnTransformer:
-    column_features = ColumnTransformer(
-        transformers=[
-            ("no_transforms", "passthrough", 
-             [
-                "male", "currentSmoker", "BPMeds", "prevalentStroke", "prevalentHyp", "diabetes", 
-                'missingindicator_totChol',
-                'missingindicator_glucose',
-                'missingindicator_heartRate',
-                'missingindicator_cigsPerDay',
-                'missingindicator_BMI',
-                "age", 
-                # "BMI", "heartRate", "glucose",
-            ]),
-            ("one_hot", OneHotEncoder(drop="first", sparse_output=False,), ["education"]),
-            ("target_encoder", TargetEncoder(random_state=42), ["education"]),
-            ("bmi_binarizer", Binarizer(threshold=16.), ["BMI"]),
-            ("heartRate_binarizer", Binarizer(threshold=40.), ["heartRate"]),
-            ("glucose_binarizer", Binarizer(threshold=120.), ["glucose"]),
-        ],
-        remainder="drop",
-        verbose_feature_names_out=False,
-    )
-    return column_features
+ESTIMATOR_REGISTRY = {
+    "SimpleImputer": SimpleImputer,
+    "TargetEncoder": TargetEncoder,
+    "MissingIndicator": MissingIndicator,
+    "Binarizer": Binarizer,
+    "OneHotEncoder": OneHotEncoder,
+    "passthrough":  "passthrough",
+    "drop": "drop",
+}
+
+
+class PreprocessingPipelineBuilder:
+    _BUILDER_METHODS_REGISTRY = {
+        "Pipeline": "_build_pipeline",
+        "ColumnTransformer": "_build_column_transformer",
+    }
+
+    def _select_method_to_build(
+        self,
+        config: ColumnTransformerModel | TransformerModel | PipelineModel
+    ):
+        method_name = self._BUILDER_METHODS_REGISTRY.get(config.name, "_build_transformer")
+        method = getattr(self, method_name)
+        return method(config)
+
+    def _build_column_transformer(
+        self,
+        config: ColumnTransformerModel
+    ) -> ColumnTransformer:
+        transformers = [
+            (
+                transformer_config.transformer if transformer_config.transformer in ("drop", "passthrough") else self._select_method_to_build(transformer_config.transformer),
+                transformer_config.columns
+            )
+            for transformer_config in config.transformers
+        ]
+        return make_column_transformer(
+            *transformers,
+            **config.params
+        )
+        
+    @staticmethod
+    def _build_transformer(
+        config: TransformerModel
+    ) -> BaseEstimator | Literal["drop", "passthrough"]:
+        estimator = ESTIMATOR_REGISTRY[config.name]
+        if estimator in ("drop", "passthrough"):
+            return estimator
+        return estimator(**config.params)
+
+    def _build_pipeline(
+        self,
+        config: PipelineModel
+    ) -> Pipeline:
+        transformers = [self._select_method_to_build(step) for step in config.steps]
+        return make_pipeline(*transformers)
+
+    def build(self, config: PipelineModel | None) -> Pipeline | None:
+        if config is None:
+            return None
+        return self._build_pipeline(config)
+
+
+if __name__ == "__main__":
+    config_path = "configs/baseline.yaml"
+    config = load_config(config_path)
+    pipeline = PreprocessingPipelineBuilder().build(config.preprocessing_steps)
+    pprint(config)
+    if pipeline:
+        pprint(pipeline.get_params(deep=True), width=200, depth=None)
+    # print(json.dumps(pipeline.get_params(deep=True), indent=4, default=str))

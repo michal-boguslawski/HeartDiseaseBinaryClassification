@@ -1,0 +1,80 @@
+target: TenYearCHD
+random_state: 42
+test_size: 0.2
+
+model_name: LogisticRegression
+model_params:
+  random_state: 42
+  max_iter: 1000
+  solver: newton-cholesky
+
+evaluation:
+  metrics: [auc, f1, accuracy, precision, recall, log_loss]
+  log_metrics: [classification_report, confusion_matrix]
+  plot_metrics: []
+
+preprocessing_steps:
+  name: Pipeline
+  steps:
+    - name: ColumnTransformer
+      params:
+        remainder: drop
+        verbose_feature_names_out: False
+      transformers:
+        - columns: [BPMeds]
+          transformer:
+            name: SimpleImputer
+            params:
+              strategy: constant
+              fill_value: 0
+
+        - columns: [education]
+          transformer:
+            name: Pipeline
+            steps:
+              - name: SimpleImputer
+                params:
+                  strategy: constant
+                  fill_value: 0
+
+              - name: OneHotEncoder
+                params:
+                  drop: first
+                  sparse_output: False
+
+        - columns: [BMI]
+          transformer:
+            name: Pipeline
+            steps:
+              - name: SimpleImputer
+                params:
+                  strategy: mean
+              - name: Binarizer
+                params:
+                  threshold: 16
+
+        - columns: [heartRate]
+          transformer:
+            name: Pipeline
+            steps:
+              - name: SimpleImputer
+                params:
+                  strategy: mean
+              - name: Binarizer
+                params:
+                  threshold: 40
+
+        - columns: [glucose]
+          transformer:
+            name: Pipeline
+            steps:
+              - name: SimpleImputer
+                params:
+                  strategy: mean
+              - name: Binarizer
+                params:
+                  threshold: 120
+
+        - columns: [male, currentSmoker, prevalentStroke, prevalentHyp, diabetes, age]
+          transformer:
+            name: passthrough
