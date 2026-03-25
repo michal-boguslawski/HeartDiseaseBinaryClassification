@@ -1,0 +1,47 @@
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.10.1-full
+    container_name: mlflow_server
+    ports:
+      - "5000:5000"
+    networks:
+      - mlflow_net
+    volumes:
+      - mlflow_db:/mlflow
+      - mlflow_artifacts:/mlruns
+
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination /mlruns
+      --allowed-hosts "*"
+  
+  api:
+    build: ./serve
+    container_name: api_server
+    ports:
+      - "8000:8000"
+    networks:
+      - mlflow_net
+    depends_on:
+      - mlflow
+
+  ui:
+    build: ./ui
+    container_name: streamlit_app
+    ports:
+      - "8501:8501"
+    networks:
+      - mlflow_net
+    depends_on:
+      - api
+
+networks:
+  mlflow_net:
+    driver: bridge
+
+volumes:
+  mlflow_db:
+  mlflow_artifacts:

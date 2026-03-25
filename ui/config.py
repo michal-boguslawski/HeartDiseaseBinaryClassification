@@ -1,0 +1,1 @@
+API_URI = "http://api:8000/api/v1"

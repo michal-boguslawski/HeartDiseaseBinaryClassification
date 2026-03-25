@@ -5,7 +5,7 @@ from sklearn.base import BaseEstimator
 from sklearn.compose import ColumnTransformer, make_column_transformer
 from sklearn.impute import SimpleImputer, MissingIndicator
 from sklearn.pipeline import Pipeline, make_pipeline
-from sklearn.preprocessing import Binarizer, OneHotEncoder, TargetEncoder
+from sklearn.preprocessing import Binarizer, OneHotEncoder, TargetEncoder, LabelEncoder, PolynomialFeatures
 from typing import Literal, Any
 
 from .config import load_config
@@ -46,8 +46,10 @@ ESTIMATOR_REGISTRY = {
     "MissingIndicator": MissingIndicator,
     "Binarizer": Binarizer,
     "OneHotEncoder": OneHotEncoder,
+    "LabelEncoder": LabelEncoder,
     "passthrough":  "passthrough",
     "drop": "drop",
+    "PolynomialFeatures": PolynomialFeatures,
 }
 
 

@@ -2,13 +2,22 @@ target: TenYearCHD
 random_state: 42
 test_size: 0.2
 
-model_name: LogisticRegression
+model_name: XGBClassifier
 model_params:
+  n_estimators: 2000
+  learning_rate: 0.002
+  max_depth: 4
+  min_child_weight: 5
+  subsample: 0.8
+  colsample_bytree: 1.
+  gamma: 0.5
+  reg_alpha: 0.5
+  reg_lambda: 1
+  objective: "binary:logistic"
+  eval_metric: logloss
   random_state: 42
-  class_weight: balanced
-  max_iter: 1000
-  C: 5
-  solver: newton-cholesky
+  n_jobs: 4
+  scale_pos_weight: 5
 
 evaluation:
   metrics: [auc, f1, accuracy, precision, recall, log_loss]
@@ -39,10 +48,9 @@ preprocessing_steps:
                   strategy: constant
                   fill_value: 0
 
-              - name: OneHotEncoder
+              - name: TargetEncoder
                 params:
-                  drop: first
-                  sparse_output: False
+                  random_state: 42
 
         - columns: [BMI]
           transformer:
@@ -80,24 +88,3 @@ preprocessing_steps:
         - columns: [male, currentSmoker, prevalentStroke, prevalentHyp, diabetes, age]
           transformer:
             name: passthrough
-
-    - name: ColumnTransformer
-      params:
-        remainder: passthrough
-        verbose_feature_names_out: False
-      transformers:
-        - columns: [age, diabetes]
-          transformer:
-            name: PolynomialFeatures
-            params:
-              degree: 2
-              interaction_only: True
-              include_bias: False
-
-        - columns: [prevalentStroke, prevalentHyp]
-          transformer:
-            name: PolynomialFeatures
-            params:
-              degree: 2
-              interaction_only: True
-              include_bias: False

@@ -1,3 +1,7 @@
+import numpy as np
+import pandas as pd
+from sklearn.base import BaseEstimator
+from sklearn.inspection import partial_dependence
 from sklearn.metrics import roc_auc_score, accuracy_score, top_k_accuracy_score, \
     precision_score, recall_score, f1_score, classification_report, confusion_matrix, \
     log_loss
@@ -13,6 +17,7 @@ METRICS_REGISTRY = {
     "classification_report": classification_report,
     "confusion_matrix": confusion_matrix,
     "log_loss": log_loss,
+    "partial_dependence": partial_dependence,
 }
 
 
@@ -31,6 +36,8 @@ class Evaluator:
                 results[metric.__name__] = metric(y_true, y_pred)
         return results
 
-    def evaluate(self, y_true, y_pred, y_proba=None) -> dict[str, float]:
+    def evaluate(self, y_true, y_pred, y_proba=None, estimator: BaseEstimator | None = None,
+                 X: pd.DataFrame | np.ndarray | None = None, features: list[str] | None = None,
+                 categorical: list[str] | None = None) -> dict[str, float]:
         results = self._evaluate_metrics(y_true, y_pred, y_proba)
         return results
